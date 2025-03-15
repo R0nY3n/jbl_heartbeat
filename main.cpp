@@ -21,6 +21,7 @@
 #pragma comment(lib, "user32.lib")
 #pragma comment(lib, "shell32.lib")
 #pragma comment(lib, "ole32.lib")
+#pragma comment(lib, "advapi32.lib")
 
 // 定义使用Unicode版本的Windows API
 #ifndef UNICODE
@@ -325,11 +326,11 @@ void UpdateTrayMenu(HMENU hMenu) {
 
 // 播放心跳声音
 void PlayHeartbeatSound() {
-    // 生成低频音（50Hz正弦波）
+    // 生成低频音（40Hz正弦波）- 降低频率以更好地唤醒设备
     const int sampleRate = 44100;
-    const double frequency = 50.0; // 50Hz低频
-    const double amplitude = 0.5;  // 音量
-    const double duration = 0.5;   // 0.5秒
+    const double frequency = 40.0;  // 40Hz低频，比原来的50Hz更低
+    const double amplitude = 0.7;   // 增加音量到0.7
+    const double duration = 2.0;    // 增加持续时间到2秒
     const int numSamples = static_cast<int>(sampleRate * duration);
 
     // 创建WAV文件头
@@ -375,10 +376,23 @@ void PlayHeartbeatSound() {
         // 写入头部
         fwrite(&header, sizeof(header), 1, file);
 
-        // 写入音频数据
+        // 写入音频数据 - 添加淡入淡出效果以减少爆音
         for (int i = 0; i < numSamples; i++) {
             double t = static_cast<double>(i) / sampleRate;
-            double value = amplitude * sin(2.0 * 3.14159265358979323846 * frequency * t);
+
+            // 应用淡入淡出包络
+            double envelope = 1.0;
+            const double fadeTime = 0.1; // 淡入淡出时间（秒）
+
+            if (t < fadeTime) {
+                // 淡入
+                envelope = t / fadeTime;
+            } else if (t > duration - fadeTime) {
+                // 淡出
+                envelope = (duration - t) / fadeTime;
+            }
+
+            double value = amplitude * envelope * sin(2.0 * 3.14159265358979323846 * frequency * t);
             int16_t sample = static_cast<int16_t>(value * 32767);
             fwrite(&sample, sizeof(int16_t), 1, file);
         }
