@@ -35,10 +35,15 @@
 #define ID_TRAY_EXIT 104
 #define ID_TRAY_PLAY_TEST 105
 #define ID_TRAY_START_STOP 106
-#define ID_TRAY_INCREASE 107
-#define ID_TRAY_DECREASE 108
+#define ID_TRAY_INCREASE_INTERVAL 107
+#define ID_TRAY_DECREASE_INTERVAL 108
 #define ID_TRAY_STATUS 109
 #define ID_TRAY_AUTOSTART 110
+#define ID_TRAY_SETTINGS 111
+#define ID_TRAY_INCREASE_DURATION 112
+#define ID_TRAY_DECREASE_DURATION 113
+#define ID_TRAY_INCREASE_VOLUME 114
+#define ID_TRAY_DECREASE_VOLUME 115
 #define WM_TRAYICON (WM_USER + 1)
 
 // 全局变量
@@ -47,11 +52,15 @@ HWND g_hWnd = NULL;
 NOTIFYICONDATAW g_nid = {};
 std::atomic<bool> g_isRunning(true);
 std::atomic<int> g_intervalSeconds(60);
+double g_duration = 2.0;    // 音频持续时间（秒）
+double g_amplitude = 0.7;   // 音频音量（0.0-1.0）
+std::mutex g_paramMutex;    // 用于保护非原子参数的互斥锁
 std::thread g_heartbeatThread;
 std::mutex g_mutex;
 std::condition_variable g_cv;
 bool g_threadShouldExit = false;
 bool g_autoStart = false;
+bool g_showSettingsMenu = false;        // 是否显示设置菜单
 
 // 函数声明
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
@@ -62,6 +71,7 @@ void PlayHeartbeatSound();
 void HeartbeatThreadFunc();
 bool IsAutoStartEnabled();
 void SetAutoStart(bool enable);
+void ShowSettingsDialog(HWND hwnd);
 
 // 获取当前可执行文件路径
 std::wstring GetExecutablePath() {
@@ -220,16 +230,52 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
                     }
                     return 0;
 
-                case ID_TRAY_INCREASE:
+                case ID_TRAY_INCREASE_INTERVAL:
                     g_intervalSeconds += 5;
                     if (g_intervalSeconds > 300) g_intervalSeconds = 300; // 最大5分钟
                     UpdateTrayIcon(g_isRunning);
                     return 0;
 
-                case ID_TRAY_DECREASE:
+                case ID_TRAY_DECREASE_INTERVAL:
                     g_intervalSeconds -= 5;
                     if (g_intervalSeconds < 5) g_intervalSeconds = 5; // 最小5秒
                     UpdateTrayIcon(g_isRunning);
+                    return 0;
+
+                case ID_TRAY_INCREASE_DURATION:
+                    {
+                        std::lock_guard<std::mutex> lock(g_paramMutex);
+                        g_duration += 0.5;
+                        if (g_duration > 10.0) g_duration = 10.0; // 最大10秒
+                    }
+                    return 0;
+
+                case ID_TRAY_DECREASE_DURATION:
+                    {
+                        std::lock_guard<std::mutex> lock(g_paramMutex);
+                        g_duration -= 0.5;
+                        if (g_duration < 0.5) g_duration = 0.5; // 最小0.5秒
+                    }
+                    return 0;
+
+                case ID_TRAY_INCREASE_VOLUME:
+                    {
+                        std::lock_guard<std::mutex> lock(g_paramMutex);
+                        g_amplitude += 0.1;
+                        if (g_amplitude > 1.0) g_amplitude = 1.0; // 最大100%
+                    }
+                    return 0;
+
+                case ID_TRAY_DECREASE_VOLUME:
+                    {
+                        std::lock_guard<std::mutex> lock(g_paramMutex);
+                        g_amplitude -= 0.1;
+                        if (g_amplitude < 0.1) g_amplitude = 0.1; // 最小10%
+                    }
+                    return 0;
+
+                case ID_TRAY_SETTINGS:
+                    g_showSettingsMenu = !g_showSettingsMenu;
                     return 0;
 
                 case ID_TRAY_AUTOSTART:
@@ -307,17 +353,60 @@ void UpdateTrayIcon(bool isRunning) {
 
 // 更新托盘菜单
 void UpdateTrayMenu(HMENU hMenu) {
-    std::wstring statusText = L"Interval: " + std::to_wstring(g_intervalSeconds) + L" seconds";
+    // 获取当前参数值（线程安全）
+    double duration, amplitude;
+    {
+        std::lock_guard<std::mutex> lock(g_paramMutex);
+        duration = g_duration;
+        amplitude = g_amplitude;
+    }
+
+    // 格式化显示的文本
+    std::wstring intervalText = L"Interval: " + std::to_wstring(g_intervalSeconds) + L"s  [-] [+]";
+    std::wstring durationText = L"Duration: " + std::to_wstring(static_cast<int>(duration * 10) / 10.0) + L"s  [-] [+]";
+    std::wstring volumeText = L"Volume: " + std::to_wstring(static_cast<int>(amplitude * 100)) + L"%  [-] [+]";
     std::wstring startStopText = g_isRunning ? L"Pause" : L"Start";
     std::wstring autoStartText = g_autoStart ? L"✓ Start with Windows" : L"Start with Windows";
+    std::wstring settingsText = g_showSettingsMenu ? L"Hide Settings" : L"Show Settings";
 
-    AppendMenuW(hMenu, MF_STRING, ID_TRAY_STATUS, statusText.c_str());
-    AppendMenuW(hMenu, MF_SEPARATOR, 0, NULL);
-    AppendMenuW(hMenu, MF_STRING, ID_TRAY_INCREASE, L"Increase Interval (+5s)");
-    AppendMenuW(hMenu, MF_STRING, ID_TRAY_DECREASE, L"Decrease Interval (-5s)");
-    AppendMenuW(hMenu, MF_SEPARATOR, 0, NULL);
+    // 主菜单项
     AppendMenuW(hMenu, MF_STRING, ID_TRAY_PLAY_TEST, L"Play Test Sound");
     AppendMenuW(hMenu, MF_STRING, ID_TRAY_START_STOP, startStopText.c_str());
+    AppendMenuW(hMenu, MF_SEPARATOR, 0, NULL);
+
+    // 设置菜单项
+    AppendMenuW(hMenu, MF_STRING, ID_TRAY_SETTINGS, settingsText.c_str());
+
+    // 如果设置菜单展开，显示详细设置
+    if (g_showSettingsMenu) {
+        // 间隔时间设置
+        HMENU hIntervalMenu = CreatePopupMenu();
+        AppendMenuW(hIntervalMenu, MF_STRING, ID_TRAY_DECREASE_INTERVAL, L"[-]");
+        AppendMenuW(hIntervalMenu, MF_STRING | MF_DISABLED, ID_TRAY_STATUS, std::to_wstring(g_intervalSeconds).c_str());
+        AppendMenuW(hIntervalMenu, MF_STRING, ID_TRAY_INCREASE_INTERVAL, L"[+]");
+
+        // 持续时间设置
+        HMENU hDurationMenu = CreatePopupMenu();
+        AppendMenuW(hDurationMenu, MF_STRING, ID_TRAY_DECREASE_DURATION, L"[-]");
+        AppendMenuW(hDurationMenu, MF_STRING | MF_DISABLED, ID_TRAY_STATUS + 1, std::to_wstring(static_cast<int>(duration * 10) / 10.0).c_str());
+        AppendMenuW(hDurationMenu, MF_STRING, ID_TRAY_INCREASE_DURATION, L"[+]");
+
+        // 音量设置
+        HMENU hVolumeMenu = CreatePopupMenu();
+        AppendMenuW(hVolumeMenu, MF_STRING, ID_TRAY_DECREASE_VOLUME, L"[-]");
+        AppendMenuW(hVolumeMenu, MF_STRING | MF_DISABLED, ID_TRAY_STATUS + 2, std::to_wstring(static_cast<int>(amplitude * 100)).c_str());
+        AppendMenuW(hVolumeMenu, MF_STRING, ID_TRAY_INCREASE_VOLUME, L"[+]");
+
+        // 添加设置项
+        std::wstring intervalStr = L"Interval: " + std::to_wstring(g_intervalSeconds) + L"s";
+        std::wstring durationStr = L"Duration: " + std::to_wstring(static_cast<int>(duration * 10) / 10.0) + L"s";
+        std::wstring volumeStr = L"Volume: " + std::to_wstring(static_cast<int>(amplitude * 100)) + L"%";
+
+        AppendMenuW(hMenu, MF_STRING, ID_TRAY_DECREASE_INTERVAL, intervalStr.c_str());
+        AppendMenuW(hMenu, MF_STRING, ID_TRAY_DECREASE_DURATION, durationStr.c_str());
+        AppendMenuW(hMenu, MF_STRING, ID_TRAY_DECREASE_VOLUME, volumeStr.c_str());
+    }
+
     AppendMenuW(hMenu, MF_SEPARATOR, 0, NULL);
     AppendMenuW(hMenu, MF_STRING, ID_TRAY_AUTOSTART, autoStartText.c_str());
     AppendMenuW(hMenu, MF_SEPARATOR, 0, NULL);
@@ -326,11 +415,16 @@ void UpdateTrayMenu(HMENU hMenu) {
 
 // 播放心跳声音
 void PlayHeartbeatSound() {
-    // 生成低频音（40Hz正弦波）- 降低频率以更好地唤醒设备
+    // 获取当前配置的参数（线程安全）
+    double duration, amplitude;
+    {
+        std::lock_guard<std::mutex> lock(g_paramMutex);
+        duration = g_duration;
+        amplitude = g_amplitude;
+    }
+
     const int sampleRate = 44100;
-    const double frequency = 40.0;  // 40Hz低频，比原来的50Hz更低
-    const double amplitude = 0.7;   // 增加音量到0.7
-    const double duration = 2.0;    // 增加持续时间到2秒
+    const double frequency = 40.0;                      // 40Hz低频
     const int numSamples = static_cast<int>(sampleRate * duration);
 
     // 创建WAV文件头
