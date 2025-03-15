@@ -1,0 +1,18 @@
+#ifndef RESOURCE_H
+#define RESOURCE_H
+
+// Icon resources
+#define IDI_ICON_RUNNING 101
+#define IDI_ICON_PAUSED 102
+
+// Menu resources
+#define IDR_TRAY_MENU 103
+#define ID_TRAY_EXIT 104
+#define ID_TRAY_PLAY_TEST 105
+#define ID_TRAY_START_STOP 106
+#define ID_TRAY_INCREASE 107
+#define ID_TRAY_DECREASE 108
+#define ID_TRAY_STATUS 109
+#define ID_TRAY_AUTOSTART 110
+
+#endif // RESOURCE_H

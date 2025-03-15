@@ -1,0 +1,10 @@
+^E:\CURSORPROJECT\JBL_HEARTBEAT\CMAKELISTS.TXT
+setlocal
+G:\VisualStudio\Product\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe -SE:/CursorProject/jbl_heartbeat -BE:/CursorProject/jbl_heartbeat/build --check-stamp-file E:/CursorProject/jbl_heartbeat/build/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
