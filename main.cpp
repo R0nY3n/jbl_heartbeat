@@ -44,7 +44,11 @@
 #define ID_TRAY_DECREASE_DURATION 113
 #define ID_TRAY_INCREASE_VOLUME 114
 #define ID_TRAY_DECREASE_VOLUME 115
+#define ID_TRAY_GITHUB 116
 #define WM_TRAYICON (WM_USER + 1)
+
+// GitHub仓库URL
+const wchar_t* GITHUB_URL = L"https://github.com/R0nY3n/jbl_heartbeat";
 
 // 全局变量
 HINSTANCE g_hInstance = NULL;
@@ -72,6 +76,7 @@ void HeartbeatThreadFunc();
 bool IsAutoStartEnabled();
 void SetAutoStart(bool enable);
 void ShowSettingsDialog(HWND hwnd);
+void OpenGitHubPage();
 
 // 获取当前可执行文件路径
 std::wstring GetExecutablePath() {
@@ -116,6 +121,11 @@ void SetAutoStart(bool enable) {
 
     RegCloseKey(hKey);
     g_autoStart = enable;
+}
+
+// 打开GitHub页面
+void OpenGitHubPage() {
+    ShellExecuteW(NULL, L"open", GITHUB_URL, NULL, NULL, SW_SHOWNORMAL);
 }
 
 // 主函数
@@ -281,6 +291,10 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
                 case ID_TRAY_AUTOSTART:
                     SetAutoStart(!g_autoStart);
                     return 0;
+
+                case ID_TRAY_GITHUB:
+                    OpenGitHubPage();
+                    return 0;
             }
             return 0;
 
@@ -408,6 +422,7 @@ void UpdateTrayMenu(HMENU hMenu) {
     }
 
     AppendMenuW(hMenu, MF_SEPARATOR, 0, NULL);
+    AppendMenuW(hMenu, MF_STRING, ID_TRAY_GITHUB, L"Visit GitHub Page");
     AppendMenuW(hMenu, MF_STRING, ID_TRAY_AUTOSTART, autoStartText.c_str());
     AppendMenuW(hMenu, MF_SEPARATOR, 0, NULL);
     AppendMenuW(hMenu, MF_STRING, ID_TRAY_EXIT, L"Exit");

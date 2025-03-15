@@ -12,6 +12,7 @@
   - 开始/暂停发送
   - 调整所有设置参数（间隔、持续时间、音量）
   - 设置开机自启动
+  - 访问GitHub项目页面
   - 退出程序
 
 ## 使用方法
@@ -21,6 +22,7 @@
 3. 右键点击托盘图标可以调整设置或退出程序
 4. 点击"Settings"展开设置菜单，可以调整所有参数
 5. 选择"Start with Windows"选项可以设置开机自启动
+6. 点击"Visit GitHub Page"可以访问项目的GitHub页面
 
 ## 可配置参数
 
@@ -51,6 +53,10 @@ cl /EHsc /W4 /DUNICODE /D_UNICODE /DWIN32 /D_WINDOWS main.cpp /link user32.lib s
 
 - Windows 7 或更高版本
 - 支持音频输出的设备
+
+## 源代码
+
+本项目的源代码托管在GitHub上：[https://github.com/R0nY3n/jbl_heartbeat](https://github.com/R0nY3n/jbl_heartbeat)
 
 ## 许可证
 
